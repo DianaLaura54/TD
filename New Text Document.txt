@@ -1,0 +1,32 @@
+-> - theory
+: - yacc
+::= - ebnf
+
+G1 E -> E+T |T 
+
+G2' T -> i | (E)
+    E -> TE1
+    E1 -> epsilon |+TE1 - same as G1
+
+eBNF E::=T('+'T)*. => E::=T || '+'. - same as G1
+     T::=i|'('E')'.
+
+
+X || D
+X+....BETA *
+BETA = '+' T
+FIRST(BETA)=FIRST('+'T)={'+'}
+
+
+E()
+{T();
+while(symbol=='+'){
+next_symbol();
+T();
+}}
+
+
+
+
+
+
