@@ -121,35 +121,34 @@ int yylex();
 int symbol;
 extern int yylval;
 
+unique_ptr<GenericASTNode> E_AS();
+unique_ptr<GenericASTNode> Z();
+unique_ptr<GenericASTNode> E_MDR();
+unique_ptr<GenericASTNode> T();
+
 //Z ::= E_AS.
-unique_ptr<GenericASTNode> Z(
+unique_ptr<GenericASTNode> Z(){
+    unique_ptr<GenericASTNode>p=E_AS();
+return p;
+};
 
-return E_AS();
 
-
-);
 //E_AS ::= E_MDR ('+' | '-' E_MDR)*.
-unique_ptr<GenericASTNode> E_AS(
-
+unique_ptr<GenericASTNode> E_AS(){
 unique_ptr<GenericASTNode> p=E_MDR();
-
 while(symbol=='+' || symbol=='-')
 {
-    char symb=symbol;
+char symb=symbol;
 next_symbol();
-
 unique_ptr<GenericASTNode> p2=E_MDR();
-
 p=make_unique<BinaryExprAST>(symb,p,p2);
-
 }
 return p;
+};
 
-
-
-); // Addition and subtraction
+ // Addition and subtraction
 //E_MDR ::= T ('*' | '/' | '%' T)*.
-unique_ptr<GenericASTNode> E_MDR(
+unique_ptr<GenericASTNode> E_MDR(){
 unique_ptr<GenericASTNode> p=T();
 while(symbol=='*' || symbol=='/' || symbol=='%')
 {
@@ -159,31 +158,38 @@ while(symbol=='*' || symbol=='/' || symbol=='%')
     p=make_unique<BinaryExprAST>(symb,p,p2);
 }
 return p;
+};
 
-
-
-); // Multiplication, Division and Remainder
+// Multiplication, Division and Remainder
 //T ::= i | '(' E_AS ')'.
-unique_ptr<GenericASTNode> T(
-
-if(number(symbol))
+unique_ptr<GenericASTNode> T(){
+if(symbol==NUMBER)
 {
-next_symbol();
+    int number=yylval;
+    next_symbol();
+    return make_unique<NumberASTNode>(number);
+
 }
-else
-{
-    E_AS();
+else if(symbol=='(' )
+{ next_symbol();
+    unique_ptr<GenericASTNode> p=E_AS();
+    if(!symbol==')')
+    {
+        return nullptr;
+    }
+    else
+    {
+        return p;
+    }
 }
-
-
-
-);
+};
 
 
 void next_symbol()
 {
 	symbol = yylex();
 }
+
 
 //===----------------------------------------------------------------------===//
 // main function
@@ -192,6 +198,7 @@ int main()
 {
 
     InitializeModule();
+   // CodeGenTopLevel(Z());
 
     return 0;
 }
