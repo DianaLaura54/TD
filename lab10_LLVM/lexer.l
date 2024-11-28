@@ -1,11 +1,10 @@
 %{
 #define NUMBER 256
-extern int yylval;
-#define WHILE 260
+int yylval;
 %}
 
 %%
 
 [0-9]+ { yylval = atoi(yytext); return NUMBER; }
 [+()=\n] return *yytext;
-while { return WHILE;}
+
