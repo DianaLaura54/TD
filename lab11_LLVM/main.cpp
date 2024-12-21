@@ -1,14 +1,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#define LETTER 256
-#define NUMBER 257
-#define ELSE 260
-#define IF 261
-#include <stdarg.h>
+#include <map>
+
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/NoFolder.h"
@@ -18,14 +12,9 @@ using namespace std;
 using namespace llvm;
 
 #define NUMBER 256
-
 static unique_ptr<LLVMContext> TheContext;
 static unique_ptr<IRBuilder<NoFolder>> Builder;
 static unique_ptr<Module> TheModule;
-
-
-
-
 
 static void InitializeModule()
 {
@@ -41,8 +30,24 @@ class GenericASTNode
 {
 public:
     virtual ~GenericASTNode() = default;
-    virtual void toString() {};
+    virtual void toString(){};
     virtual Value *codegen() = 0;
+};
+
+class StatementASTNode : public GenericASTNode
+{
+    unique_ptr<GenericASTNode> node;
+    unique_ptr<GenericASTNode> nextNode;
+
+public:
+    StatementASTNode(unique_ptr<GenericASTNode> node, unique_ptr<GenericASTNode> nextNode)
+    {
+        this->node = std::move(node);
+        this->nextNode = std::move(nextNode);
+    }
+
+    void toString() { return; }
+    Value *codegen() { return nullptr; }
 };
 
 class NumberASTNode : public GenericASTNode
@@ -59,6 +64,50 @@ public:
     Value *codegen() { return nullptr; }
 };
 
+class VariableReadASTNode : public GenericASTNode
+{
+    string name;
+
+public:
+    VariableReadASTNode(char name[])
+    {
+        this->name = name;
+    }
+
+    void toString() { return; }
+    Value *codegen() { return nullptr; }
+};
+
+class VariableDeclarationASTNode : public GenericASTNode
+{
+    string name;
+
+public:
+    VariableDeclarationASTNode(char name[])
+    {
+        this->name = name;
+    }
+
+    void toString() { return; }
+    Value *codegen() { return nullptr; }
+};
+
+class VariableAssignASTNode : public GenericASTNode
+{
+    string varName;
+    unique_ptr<GenericASTNode> value;
+
+public:
+    VariableAssignASTNode(char varName[], unique_ptr<GenericASTNode> value)
+    {
+        this->varName = varName;
+        this->value = std::move(value);
+    }
+
+    void toString() { return; }
+    Value *codegen() { return nullptr; }
+};
+
 class BinaryExprAST : public GenericASTNode
 {
     char Op;
@@ -68,12 +117,11 @@ public:
     BinaryExprAST(char Op, unique_ptr<GenericASTNode> LHS, unique_ptr<GenericASTNode> RHS)
     {
         this->Op = Op;
-        this->LHS = move(LHS);
-        this->RHS = move(RHS);
+        this->LHS = std::move(LHS);
+        this->RHS = std::move(RHS);
     }
 
     void toString() { return; }
-
     Value *codegen() { return nullptr; }
 };
 
@@ -84,9 +132,9 @@ class IfStatementAST : public GenericASTNode
 public:
     IfStatementAST(unique_ptr<GenericASTNode> Cond, unique_ptr<GenericASTNode> TrueExpr, unique_ptr<GenericASTNode> FalseExpr)
     {
-        this->Cond = move(Cond);
-        this->TrueExpr = move(TrueExpr);
-        this->FalseExpr = move(FalseExpr);
+        this->Cond = std::move(Cond);
+        this->TrueExpr = std::move(TrueExpr);
+        this->FalseExpr = std::move(FalseExpr);
 
         // only if statement
         if (this->FalseExpr == nullptr)
@@ -96,43 +144,27 @@ public:
     }
 
     void toString() { return; }
-    Value *codegen()
-    {
-        BasicBlock *BB1 = BasicBlock::Create(*TheContext, "then");
-        BasicBlock *BB2 = BasicBlock::Create(*TheContext, "else");
-        BasicBlock *BB3 = BasicBlock::Create(*TheContext, "merge");
-
-        Value *zeroValue = ConstantInt::get(*TheContext, APInt(32, 0, true));
-        Value *condvalue=Cond->codegen();
-        Value *compareResult = Builder->CreateICmpNE(condvalue, zeroValue, "cond");
-        Builder->CreateCondBr(compareResult, BB1, BB2);
-        Function *TheFunction = Builder->GetInsertBlock()->getParent();
-        // insert the block at the end of the function
-TheFunction->insert(TheFunction->end(), BB1);
-// set the builder to the desired block
-Builder->SetInsertPoint(BB1);
-// codegen from other nodes
-Value* MyBlock1Result = TrueExpr->codegen();
-// jump unconditionally to another block
-Builder->CreateBr(BB3);
-
-// insert the block at the end of the function
-TheFunction->insert(TheFunction->end(), BB2);
-// set the builder to the desired block
-Builder->SetInsertPoint(BB2);
-// codegen from other nodes
-Value* MyBlock2Result = FalseExpr->codegen();
-// jump unconditionally to another block
-Builder->CreateBr(BB3);
-PHINode *PN = Builder->CreatePHI(Type::getInt32Ty(*TheContext), 2, "PHItmp");
-PN->addIncoming(MyBlock1Result, BB1);
-
-PN->addIncoming(MyBlock2Result, BB2);
-return PH;
-    }
+    Value *codegen() { return nullptr; }
 };
 
-void CodeGenTopLevel(unique_ptr<GenericASTNode> AST_Root)
+class WhileStatementAST : public GenericASTNode
+{
+    unique_ptr<GenericASTNode> Cond, Body;
+
+public:
+    WhileStatementAST(
+        unique_ptr<GenericASTNode> Cond,
+        unique_ptr<GenericASTNode> Body)
+    {
+        this->Cond = std::move(Cond);
+        this->Body = std::move(Body);
+    }
+
+    void toString() { return; }
+    Value *codegen() { return nullptr; }
+};
+
+void CodeGenTopLevel(shared_ptr<GenericASTNode> AST_Root)
 {
     // Create an anonymous function with no parameters
     vector<Type *> ArgumentsTypes(0);
@@ -140,8 +172,7 @@ void CodeGenTopLevel(unique_ptr<GenericASTNode> AST_Root)
     Function *F = Function::Create(FT, Function::ExternalLinkage, "main", TheModule.get());
 
     // Create a label 'entry' and set it to the current position in the builder
-    BasicBlock *BB = BasicBlock::Create(*TheContext, "entry");
-
+    BasicBlock *BB = BasicBlock::Create(*TheContext, "entry", F);
     Builder->SetInsertPoint(BB);
 
     // Generate the code for the body of the function and return the result
@@ -171,77 +202,61 @@ void CodeGenTopLevel(unique_ptr<GenericASTNode> AST_Root)
 int yylex();
 int symbol;
 extern int yylval;
-void next_symbol()
-{
-    symbol = yylex();
-}
-// Implementation of yyerror
-void yyerror(const char *s)
-{
-    fprintf(stderr, "Error: %s\n", s);
-}
-
-
-// Z ::= E_AS | E_IF.
-// E_IF ::= if '('E_AS ')''{'E_AS '}'else '{'E_AS '}'
-// E_AS ::= E_MDR ('+'| '-'E_MDR)*.
-// E_MDR ::= T ('*'| '/'| '%'T)*.
-// T ::= i | '('E_AS ')'.
+extern char identifier[255];
 
 unique_ptr<GenericASTNode> Z();
-unique_ptr<GenericASTNode> E_AS();
-unique_ptr<GenericASTNode> E_MDR();
+unique_ptr<GenericASTNode> E_AS();  // Addition and Subtraction
+unique_ptr<GenericASTNode> E_MDR(); // Multiplication, Division and Remainders
 unique_ptr<GenericASTNode> E_IF();
+unique_ptr<GenericASTNode> E_WHILE();
 unique_ptr<GenericASTNode> T();
+unique_ptr<GenericASTNode> VAR_DECL();
+unique_ptr<GenericASTNode> VAR_ASSIGN();
 
-unique_ptr<GenericASTNode> Z()
-{
-    if(symbol==IF)
+unique_ptr<GenericASTNode> Statements();
+unique_ptr<GenericASTNode> Statement();
+
+unique_ptr<GenericASTNode> Z(){
+
+ if(symbol==IF)
     {
         return E_IF();
     }
-    else return E_AS();
-}
-
-unique_ptr<GenericASTNode> E_AS()
-{
-    unique_ptr<GenericASTNode> p = E_MDR();
-    while (symbol == '+' || symbol == '-')
+    else if(symbol==WHILE)
     {
-        char symb = symbol;
-        next_symbol();
-        unique_ptr<GenericASTNode> p2 = E_MDR();
-        
-        p = make_unique<BinaryExprAST>(symb, move(p), move(p2));
+        return E_WHILE();
     }
-    return p;
+    else return E_AS();
+
 }
 
+unique_ptr<GenericASTNode> E_AS(){
 
 
- //E_IF ::= if '(' E_AS ')' '{' E_AS '}' else '{' E_AS '}'
+
+};
+
+unique_ptr<GenericASTNode> E_MDR(){
+};
+
 unique_ptr<GenericASTNode> E_IF()
 {
- 
+ unique_ptr<GenericASTNode>p=E_AS();
  if (symbol == IF)
     {
         next_symbol();
-        
-      
-
-         unique_ptr<GenericASTNode> rez1,rez2;
+        nodeType *rez1,*rez2;
         if (symbol == '(')
         {
             next_symbol();
-            
-             unique_ptr<GenericASTNode> cond = E_AS();
+            nodeType *cond = E_AS();
             if (symbol == ')')
             {
                 next_symbol();
                 if(symbol=='{')
                 {
                  next_symbol();
-                 unique_ptr<GenericASTNode> body = E_AS();
+                nodeType *body = E_AS();
                 if(symbol=='}')
                 {
                   next_symbol();
@@ -250,18 +265,18 @@ unique_ptr<GenericASTNode> E_IF()
                   if(symbol=='{')
                   {
                     next_symbol();
-                     unique_ptr<GenericASTNode> body2=E_AS();
+                    nodeType *body2=E_AS();
                     if(symbol=='}')
                     {
              next_symbol();
-            return make_unique<IfStatementAST>(move(cond),move(body),move(body2));
+            return make_unique<IfStatementAST>(cond,body,body2);
                     }
                   }
                 }
                 else
                 {
                     next_symbol();
-                    return make_unique<IfStatementAST>(move(cond),move(body),nullptr);
+                    return make_unique<IfStatementAST>(cond,body);
 
                 }
               }
@@ -269,46 +284,35 @@ unique_ptr<GenericASTNode> E_IF()
         }
     }
  }
+};
+
+
+
+
+
+unique_ptr<GenericASTNode> E_IF(){
+
+
+
+
 }
 
+unique_ptr<GenericASTNode> E_WHILE(){
 
-unique_ptr<GenericASTNode> E_MDR()
+
+}
+
+unique_ptr<GenericASTNode> T(){
+
+
+
+
+
+}
+void next_symbol()
 {
-    unique_ptr<GenericASTNode> p = T();
-    while (symbol == '*' || symbol == '/' || symbol == '%')
-    {
-        char symb = symbol;
-        next_symbol();
-        unique_ptr<GenericASTNode> p2 = T();
-        p = make_unique<BinaryExprAST>(move(symb), move(p), move(p2));
-    }
-    return p;
+    symbol = yylex();
 }
-
-
-unique_ptr<GenericASTNode> T()
-{
-    if (symbol == NUMBER)
-    {
-        int number = yylval;
-        next_symbol();
-        return make_unique<NumberASTNode>(move(number));
-    }
-    else if (symbol == '(')
-    {
-        next_symbol();
-        unique_ptr<GenericASTNode> p = E_AS();
-        if (!symbol == ')')
-        {
-            return nullptr;
-        }
-        else
-        {
-            return p;
-        }
-    }
-}
-
 
 //===----------------------------------------------------------------------===//
 // main function

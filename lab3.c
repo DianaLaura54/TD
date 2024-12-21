@@ -2,11 +2,14 @@
 #include <stdlib.h>
 #include "types.h"
 #include <stddef.h>
-#define LETTER 256
+extern int yylval;
 #define NUMBER 256
+#define LETTER 257
 #define WHILE 260
 #define IF 261
+#define ELSE 262
 #include <stdarg.h>
+
 
 /*
 1+2+3
@@ -27,6 +30,22 @@ push 3
 add
 add
 */
+
+/*
+a=1+2
+b=a+3
+
+push 1
+push 2
+add
+pop a
+push a
+push 3
+add
+pop b
+*/
+
+
 
 int symbol, yylval;
 nodeType *T();
@@ -108,17 +127,27 @@ nodeType *T()
     {
         int acc = con(yylval);
         next_symbol();
-    }
-    else if (symbol == '(')
-    {
-        next_symbol();
-        E();
-    }
-    else if (symbol == ')')
-    {
+        return acc;
     }
 
-    return acc;
+     if (symbol == '(')
+    {
+        next_symbol();
+        nodeType *rez = E();
+        if(symbol==')')
+        {
+            next_symbol();
+            return rez;
+        }
+    }
+     if(symbol==yylval)
+    {
+        nodeType *rez=yylval;
+      next_symbol();
+      return rez;
+    }
+    
+   
 }
 
 /*
@@ -179,8 +208,8 @@ return rez;
 
                 next_symbol();
                 nodeType *body = E();
-                if(symbol==ELSE)
-                {next_symbol();
+                if(symbol == ELSE){
+                    next_symbol();
                     nodeType *elsebody = E();
                   rez2=opr(IF,3,cond,body,elsebody);
                   return rez2;
@@ -193,7 +222,6 @@ return rez;
             }
         }
     }
-
  
 }
 
@@ -202,8 +230,20 @@ parser()
     ex(E());
     if (symbol != '\n')
         error();
+        
 }
+
+
+
+
 
 int main()
 {
+next_symbol();
+while(symbol!=0)
+{
+parser();
+next_symbol();
+}
+
 }

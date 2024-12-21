@@ -2,3 +2,6 @@ lex lab1.l
 generates lex.yy.c
 gcc -o lab1 lab1.c
 lex.yy.c -ll
+
+
+gcc -o lab3 lab3.c lex.yy.c -ll compiler.c
